@@ -1,0 +1,373 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+  AreaChart,
+  Area,
+} from "recharts";
+import {
+  Bell,
+  Moon,
+  Sun,
+  Search,
+  TrendingUp,
+  Users,
+  MessagesSquare,
+  Activity,
+  Zap,
+  Settings,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+
+// --- Utility helpers ---
+const randomBetween = (min, max) => Math.round(Math.random() * (max - min) + min);
+const formatK = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`);
+
+// --- Mock seed data ---
+const seedSeries = (len = 24, base = 100) =>
+  Array.from({ length: len }).map((_, i) => ({
+    name: `${i}:00`,
+    value: Math.max(0, base + Math.round((Math.sin(i / 2) + Math.random() - 0.5) * base * 0.15)),
+  }));
+
+const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7f50", "#00C49F", "#0088FE"];
+
+function LiveDot() {
+  return (
+    <span className="relative flex h-2.5 w-2.5">
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+    </span>
+  );
+}
+
+function StatCard({ icon: Icon, label, value, delta }) {
+  const deltaColor = delta > 0 ? "text-emerald-600" : delta < 0 ? "text-rose-600" : "text-muted-foreground";
+  const deltaSign = delta > 0 ? "+" : "";
+  return (
+    <Card className="shadow-sm">
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">{label}</p>
+            <div className="mt-1 flex items-baseline gap-2">
+              <p className="text-2xl font-semibold leading-none tracking-tight">{value}</p>
+              <span className={`text-xs font-medium ${deltaColor}`}>{deltaSign}{delta}%</span>
+            </div>
+          </div>
+          <div className="rounded-2xl p-2 bg-muted">
+            <Icon className="h-5 w-5" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ChartCard({ title, subtitle, children, action }) {
+  return (
+    <Card className="shadow-sm">
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <CardTitle className="text-base">{title}</CardTitle>
+            {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
+          </div>
+          {action}
+        </div>
+      </CardHeader>
+      <CardContent className="pt-2">{children}</CardContent>
+    </Card>
+  );
+}
+
+export default function SocialMediaDashboard() {
+  const [dark, setDark] = useState(true);
+  const [range, setRange] = useState("7d");
+  const [followers, setFollowers] = useState(12340);
+  const [engagement, setEngagement] = useState(4.8); // %
+  const [messages, setMessages] = useState(274);
+  const [posts, setPosts] = useState(38);
+  const [series, setSeries] = useState(seedSeries(24, 120));
+  const [barSeries, setBarSeries] = useState(
+    Array.from({ length: 7 }).map((_, i) => ({ day: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][i], posts: randomBetween(2, 12), interactions: randomBetween(120, 420) }))
+  );
+
+  const [platformShare, setPlatformShare] = useState([
+    { name: "Instagram", value: 46 },
+    { name: "YouTube", value: 28 },
+    { name: "X / Twitter", value: 14 },
+    { name: "LinkedIn", value: 8 },
+    { name: "Facebook", value: 4 },
+  ]);
+
+  // Simulate live updates
+  useEffect(() => {
+    const iv = setInterval(() => {
+      // followers drift
+      setFollowers((f) => f + randomBetween(-5, 12));
+      // engagement wobble
+      setEngagement((e) => Math.max(0, Math.min(100, +(e + (Math.random() - 0.45)).toFixed(2))));
+      // messages tick
+      setMessages((m) => m + randomBetween(0, 4));
+      // posts occasionally increase
+      setPosts((p) => (Math.random() > 0.7 ? p + 1 : p));
+
+      // line series roll
+      setSeries((arr) => {
+        const last = arr[arr.length - 1]?.value ?? 100;
+        const next = Math.max(0, last + randomBetween(-15, 18));
+        const nextLabel = (() => {
+          const parts = arr[arr.length - 1]?.name.split(":");
+          const h = parts ? (parseInt(parts[0]) + 1) % 24 : 0;
+          return `${h}:00`;
+        })();
+        const updated = [...arr.slice(1), { name: nextLabel, value: next }];
+        return updated;
+      });
+
+      // bar series light drift
+      setBarSeries((arr) => arr.map((d) => ({ ...d, interactions: Math.max(0, d.interactions + randomBetween(-25, 35)) })));
+
+      // platform share slow drift while keeping ~100%
+      setPlatformShare((arr) => {
+        const idx = randomBetween(0, arr.length - 1);
+        const delta = randomBetween(-2, 3);
+        const updated = arr.map((s, i) => ({ ...s, value: Math.max(0, s.value + (i === idx ? delta : 0)) }));
+        const sum = updated.reduce((a, b) => a + b.value, 0) || 1;
+        return updated.map((s) => ({ ...s, value: Math.round((s.value / sum) * 100) }));
+      });
+    }, 2000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Derived deltas (mock comparison to previous period)
+  const deltas = useMemo(() => ({
+    followers: randomBetween(1, 5),
+    engagement: randomBetween(-2, 6),
+    messages: randomBetween(-3, 10),
+    posts: randomBetween(-5, 12),
+  }), [range]);
+
+  return (
+    <div className={`min-h-screen ${dark ? "dark" : ""}`}>
+      <div className="bg-background text-foreground transition-colors">
+        {/* App Shell */}
+        <div className="grid grid-cols-12 min-h-screen">
+          {/* Sidebar */}
+          <aside className="col-span-12 md:col-span-3 lg:col-span-2 border-r bg-card/40">
+            <div className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center justify-center h-8 w-8 rounded-xl bg-primary/10">📊</span>
+                <span className="font-semibold">SocialPulse</span>
+              </div>
+              <Button variant="ghost" size="icon" className="rounded-2xl">
+                <Settings className="h-5 w-5" />
+              </Button>
+            </div>
+            <nav className="px-3 space-y-1">
+              {[
+                { label: "Overview", icon: Activity },
+                { label: "Content", icon: Zap },
+                { label: "Audience", icon: Users },
+                { label: "Messages", icon: MessagesSquare },
+                { label: "Growth", icon: TrendingUp },
+              ].map((item) => (
+                <Button key={item.label} variant="ghost" className="w-full justify-start gap-3 rounded-2xl">
+                  <item.icon className="h-4 w-4" /> {item.label}
+                </Button>
+              ))}
+            </nav>
+            <div className="p-4 mt-4">
+              <Card className="shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Live updates</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <LiveDot />
+                        <span className="text-xs text-muted-foreground">Every 2s</span>
+                      </div>
+                    </div>
+                    <Switch checked onCheckedChange={() => {}} />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </aside>
+
+          {/* Main */}
+          <main className="col-span-12 md:col-span-9 lg:col-span-10">
+            {/* Top Bar */}
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b sticky top-0 bg-background/80 backdrop-blur z-10">
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="relative w-full md:w-96">
+                  <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input placeholder="Search posts, creators, hashtags…" className="pl-9 rounded-2xl" />
+                </div>
+              </div>
+
+              <div className="hidden md:flex items-center gap-3">
+                <Select value={range} onValueChange={setRange}>
+                  <SelectTrigger className="w-28 rounded-2xl">
+                    <SelectValue placeholder="Range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="24h">24h</SelectItem>
+                    <SelectItem value="7d">7 days</SelectItem>
+                    <SelectItem value="30d">30 days</SelectItem>
+                    <SelectItem value="90d">90 days</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl border">
+                  <Switch checked={dark} onCheckedChange={setDark} id="darkmode" />
+                  <label htmlFor="darkmode" className="text-sm flex items-center gap-1 cursor-pointer">
+                    {dark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />} Dark mode
+                  </label>
+                </div>
+
+                <Button variant="outline" size="icon" className="rounded-2xl">
+                  <Bell className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-4">
+              {/* KPI Cards */}
+              <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+                <motion.div layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+                  <StatCard icon={Users} label="Total Followers" value={formatK(followers)} delta={deltas.followers} />
+                </motion.div>
+                <motion.div layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+                  <StatCard icon={Activity} label="Engagement Rate" value={`${engagement}%`} delta={deltas.engagement} />
+                </motion.div>
+                <motion.div layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                  <StatCard icon={MessagesSquare} label="Messages" value={formatK(messages)} delta={deltas.messages} />
+                </motion.div>
+                <motion.div layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+                  <StatCard icon={Zap} label="Posts (period)" value={posts} delta={deltas.posts} />
+                </motion.div>
+              </div>
+
+              {/* Charts Row */}
+              <div className="grid gap-4 grid-cols-1 xl:grid-cols-12 mt-4">
+                {/* Line + Area chart */}
+                <div className="xl:col-span-7">
+                  <ChartCard title="Engagement over time" subtitle="Live signal: likes + comments + saves per hour"
+                    action={
+                      <Button variant="outline" className="rounded-2xl h-8">Export CSV</Button>
+                    }
+                  >
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={series} margin={{ left: 8, right: 8, top: 10, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#8884d8" stopOpacity={0.35}/>
+                              <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                          <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                          <YAxis tick={{ fontSize: 12 }} />
+                          <Tooltip cursor={{ strokeDasharray: "3 3" }} />
+                          <Area type="monotone" dataKey="value" stroke="#8884d8" fillOpacity={1} fill="url(#colorValue)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </ChartCard>
+                </div>
+
+                {/* Bar chart */}
+                <div className="xl:col-span-5">
+                  <ChartCard title="Posts & Interactions" subtitle="Per day in selected range">
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={barSeries} margin={{ left: 8, right: 8, top: 10, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                          <XAxis dataKey="day" tick={{ fontSize: 12 }} />
+                          <YAxis tick={{ fontSize: 12 }} />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="posts" radius={[6, 6, 0, 0]} fill="#82ca9d" />
+                          <Bar dataKey="interactions" radius={[6, 6, 0, 0]} fill="#0088FE" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </ChartCard>
+                </div>
+              </div>
+
+              {/* Bottom Row */}
+              <div className="grid gap-4 grid-cols-1 xl:grid-cols-12 mt-4">
+                {/* Pie chart */}
+                <div className="xl:col-span-4">
+                  <ChartCard title="Platform share" subtitle="Traffic by platform (est.)">
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={platformShare} dataKey="value" nameKey="name" outerRadius={90} innerRadius={48} paddingAngle={2}>
+                            {platformShare.map((_, i) => (
+                              <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </ChartCard>
+                </div>
+
+                {/* Activity feed */}
+                <div className="xl:col-span-8">
+                  <ChartCard title="Recent activity" subtitle="Stream of notable events">
+                    <ul className="space-y-3">
+                      {Array.from({ length: 7 }).map((_, i) => (
+                        <li key={i} className="flex items-start gap-3 p-3 rounded-2xl border">
+                          <div className="mt-1"><LiveDot /></div>
+                          <div>
+                            <p className="text-sm">
+                              <span className="font-medium">@creator{i + 1}</span> increased engagement by {randomBetween(3, 12)}% after posting a short video.
+                            </p>
+                            <p className="text-xs text-muted-foreground">{randomBetween(2, 59)} minutes ago</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </ChartCard>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="text-xs text-muted-foreground mt-6 flex items-center justify-between">
+                <span>© {new Date().getFullYear()} SocialPulse · Live demo data</span>
+                <span>
+                  Built with <a className="underline-offset-2 underline" href="#">React</a>, <a className="underline-offset-2 underline" href="#">Recharts</a>, <a className="underline-offset-2 underline" href="#">shadcn/ui</a>
+                </span>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+  );
+}
